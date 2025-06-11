@@ -301,6 +301,32 @@ class EmbedID(Layer):
         return y
 
 
+class EmbeddingDot(Layer):
+    def __init__(self, embed_W):
+        super().__init__()
+        self.embed = EmbedID(embed_W.shape[0], embed_W.shape[1])
+        self.embed.W.data = embed_W
+
+    def forward(self, h, idx):
+        target_W = self.embed(idx)  # idx: (batch,)
+        out = F.sum(target_W * h, axis=1)
+        self.cache = (h, target_W, idx)
+        return out
+
+    def backward(self, dout):
+        h, target_W, idx = self.cache
+        dout = dout.reshape(dout.shape[0], 1)
+
+        dtarget_W = dout * h
+        dh = dout * target_W
+
+        # 임베딩 가중치에 대해 수동으로 gradient 누적
+        self.embed.W.grad = np.zeros_like(self.embed.W.data)
+        np.add.at(self.embed.W.grad, idx, dtarget_W)
+
+        return dh
+    
+
 class BatchNorm(Layer):
     def __init__(self):
         super().__init__()

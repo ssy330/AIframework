@@ -193,3 +193,49 @@ class Adam(Optimizer):
         m += (1 - beta1) * (grad - m)
         v += (1 - beta2) * (grad * grad - v)
         param.data -= self.lr * m / (xp.sqrt(v) + eps)
+
+
+class RMSprop(Optimizer):
+    def __init__(self, lr=0.01, decay_rate=0.99, eps=1e-8):
+        super().__init__()
+        self.lr = lr
+        self.decay_rate = decay_rate
+        self.eps = eps
+        self.hs = {}
+
+    def update_one(self, param):
+        xp = cuda.get_array_module(param.data)
+        key = id(param)
+
+        if key not in self.hs:
+            self.hs[key] = xp.zeros_like(param.data)
+
+        h = self.hs[key]
+        grad = param.grad.data
+
+        h *= self.decay_rate
+        h += (1 - self.decay_rate) * grad * grad
+        param.data -= self.lr * grad / (xp.sqrt(h) + self.eps)
+
+
+class Nesterov(Optimizer):
+    def __init__(self, lr=0.01, momentum=0.9):
+        super().__init__()
+        self.lr = lr
+        self.momentum = momentum
+        self.vs = {}
+
+    def update_one(self, param):
+        xp = cuda.get_array_module(param.data)
+        key = id(param)
+
+        if key not in self.vs:
+            self.vs[key] = xp.zeros_like(param.data)
+
+        v = self.vs[key]
+        grad = param.grad.data
+
+        prev_v = v.copy()
+        v *= self.momentum
+        v -= self.lr * grad
+        param.data += -self.momentum * prev_v + (1 + self.momentum) * v
